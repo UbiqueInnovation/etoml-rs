@@ -14,6 +14,7 @@ use pest::{iterators::Pair, Parser};
 
 use crate::EToml;
 
+#[macro_export]
 macro_rules! etoml {
     ($tokens:block) => {
         EToml::try_from(stringify!($tokens))
