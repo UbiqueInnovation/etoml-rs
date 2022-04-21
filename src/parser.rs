@@ -632,10 +632,10 @@ impl TryFrom<&str> for Type {
 
 #[derive(Clone, Debug)]
 pub struct Component<T> {
-    name: String,
-    component_type: ComponentType,
-    arguments: Vec<String>,
-    body: T,
+    pub name: String,
+    pub component_type: ComponentType,
+    pub arguments: Vec<String>,
+    pub body: T,
 }
 
 #[derive(Clone, Debug)]
