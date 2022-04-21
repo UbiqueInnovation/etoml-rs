@@ -14,13 +14,6 @@ use pest::{iterators::Pair, Parser};
 
 use crate::EToml;
 
-#[macro_export]
-macro_rules! etoml {
-    ($tokens:block) => {
-        EToml::try_from(stringify!($tokens))
-    };
-}
-
 impl EToml {
     pub fn extract_value(&self, inner_value: Pair<Rule>) -> Value {
         match inner_value.as_rule() {
@@ -703,6 +696,8 @@ impl Component<Value> {
 #[cfg(test)]
 mod tests {
     use std::convert::TryFrom;
+
+    use crate::etoml;
 
     use super::{EToml, Value};
 

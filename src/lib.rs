@@ -17,3 +17,10 @@ pub struct EToml {
     pub component_section_definitions: HashMap<String, Component<Section>>,
     pub component_value_definitions: HashMap<String, Component<Value>>
 }
+
+#[macro_export]
+macro_rules! etoml {
+    ($tokens:block) => {
+        EToml::try_from(stringify!($tokens))
+    };
+}
