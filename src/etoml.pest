@@ -1,0 +1,61 @@
+config_file = { SOI ~ "{"? ~ (component_use | section | function | global_symbol | component_definition)* ~ "}"? ~ EOI }
+
+global_symbol = {"global" ~ property ~ ";"?}
+
+identifier = @{ "$"? ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+
+section_char = @{ (!("]") ~ ANY)+ }
+
+section = { "[" ~ section_char ~ "]" ~ ";"?  ~ config_element* }
+property = {key ~ "=" ~ value }
+config_element = { property ~ (!(";" ~",") ~ ";" )? }
+
+key = @{ identifier ~ ("." ~ identifier)* }
+value = { component_use| string | bool|function | key   | number | array | object }
+array = { "[" ~ (value ~  ("," ~ value)*)? ~ ","? ~ "]" }
+
+object = {
+    "{" ~
+    (config_element ~ ","?)* ~ ","?
+    ~ "}"
+}
+
+bool = {"true" | "false"}
+
+number = {scientific | float | integer}
+float = @{ "-"? ~ ASCII_DIGIT+ ~( "." ~ ASCII_DIGIT*)? }
+scientific = @{ float ~ ("E" | "e") ~ float }
+integer = @{ ASCII_DIGIT+ }
+
+
+normal_string = {PUSH("\"") ~ WHITESPACE* ~ string_content ~ WHITESPACE* ~ POP }
+string = @{raw_string | normal_string}
+raw_string = { "r" ~ PUSH("\""+) ~ WHITESPACE* ~ string_content ~ WHITESPACE* ~ POP }
+string_content = !{ string_char *}
+string_char = { !(PEEK) ~ ANY }
+
+function = { "function" ~ identifier ~ "(" ~ (function_argument ~ ("," ~ function_argument)* )? ~ ")" ~ ":" ~ function_type ~ "{" ~ function_body ~ "}"  }
+function_argument = { identifier ~ ":" ~ function_type }
+function_body = { (statement)* }
+statement = { "let " ~ identifier ~  "=" ~ value ~ ";" }
+
+component_type = { "section" | "value"}
+component_definition = { "component" ~"[" ~ component_type ~"]" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~")" ~ "{" ~ (section | value)+ ~ "}"}
+component_use = {"@" ~ identifier ~"(" ~ (value ~ ("," ~ value)* )? ~ ")" ~ ""}
+
+function_type = {
+    "bool" |
+    "String" |
+    "i32" |
+    "u32" |
+    "i64"|
+    "u64"|
+    "f32" |
+    "f64" |
+    "Request" |
+    "Response" |
+    "Void"
+}
+
+WHITESPACE = _{ " " | "\t" | NEWLINE}
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
