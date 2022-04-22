@@ -52,7 +52,6 @@ mod tests {
     #[derive(etoml_derive::Deserialize, Debug)]
     struct InnerStruct {
         inner_name: String,
-        #[from_global]
         test: bool,
     }
 
