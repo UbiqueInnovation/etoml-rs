@@ -363,6 +363,17 @@ impl<'a> Iterator for ValueObjectIterator<'a> {
     }
 }
 
+pub struct ValueObjectRefIterator<'a> {
+    inner: Option<std::collections::hash_map::Iter<'a, String, Value>>,
+}
+impl<'a> Iterator for ValueObjectRefIterator<'a> {
+    type Item = (&'a String, &'a Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.as_mut().and_then(|a| a.next())
+    }
+}
+
 impl Value {
     pub fn array_iter_mut(&mut self) -> ValueArrayIterator {
         if let Value::Array(arr) = self {
@@ -380,6 +391,15 @@ impl Value {
             }
         } else {
             ValueObjectIterator { inner: None }
+        }
+    }
+    pub fn object_iter(&self) -> ValueObjectRefIterator {
+        if let Value::Object(obj) = self {
+            ValueObjectRefIterator {
+                inner: Some(obj.iter()),
+            }
+        } else {
+            ValueObjectRefIterator { inner: None }
         }
     }
 }
@@ -517,6 +537,24 @@ impl Value {
             Value::Identifier(_, obj) => obj.get(name),
             _ => &Value::Null,
         }
+    }
+    pub fn take(&mut self, name: &str) -> Value {
+        match self {
+            Value::Object(ref mut obj) => obj.remove(name).unwrap_or(Value::Null),
+            Value::Identifier(_, obj) => obj.take(name),
+            _ => Value::Null,
+        }
+    }
+    pub fn set(&mut self, name: &str, value: Value) {
+        match self {
+            Value::Object(ref mut obj) => {
+                obj.insert(name.to_string(), value);
+            }
+            Value::Identifier(_, obj) => {
+                obj.set(name, value);
+            }
+            _ => {}
+        };
     }
     pub fn get_mut<'a>(&'a mut self, name: &str) -> Option<&'a mut Value> {
         match self {
