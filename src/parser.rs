@@ -770,7 +770,7 @@ mod tests {
 
     #[test]
     fn test_global_object() {
-        let file = include_str!("test_resources/test_global_object_in_array.cfg");
+        let file = include_str!("test_resources/test_global_object_in_array.etoml");
         let file = EToml::try_from(file).unwrap();
         if let Value::Array(ref arr) = file.tables.values().next().unwrap().get("oidc") {
             if let Value::Identifier(_, ref inner) = arr[0] {
@@ -784,7 +784,7 @@ mod tests {
     }
     #[test]
     fn test_basic() {
-        let file = include_str!("test_resources/basic_properties.cfg");
+        let file = include_str!("test_resources/basic_properties.etoml");
         let file = EToml::try_from(file).unwrap();
         let first_host = &file.tables.values().next().unwrap();
         let scientific = first_host.get("scientific");
@@ -810,21 +810,21 @@ mod tests {
 
     #[test]
     pub fn test_no_semicolon() {
-        let file = include_str!("test_resources/test_no_semicolon.cfg");
+        let file = include_str!("test_resources/test_no_semicolon.etoml");
         let file = EToml::try_from(file).unwrap();
         let test = &file.tables.values().next().unwrap().get("test");
         assert!(matches!(test, Value::String(a) if a.as_str() == "test"));
     }
     #[test]
     pub fn test_oneline() {
-        let file = include_str!("test_resources/test_one_line.cfg");
+        let file = include_str!("test_resources/test_one_line.etoml");
         let file = EToml::try_from(file).unwrap();
         let test = &file.tables.values().next().unwrap().get("test");
         assert!(matches!(test, Value::String(a) if a.as_str() == "test"));
     }
     #[test]
     pub fn test_global_render() {
-        let file = include_str!("test_resources/test_global_render.cfg");
+        let file = include_str!("test_resources/test_global_render.etoml");
         let file = EToml::try_from(file).unwrap();
         let mut crazy = file.get("crazy").unwrap().clone();
         for _ in 1..=5 {
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     pub fn test_object_array() {
-        let file = include_str!("test_resources/object_array.cfg");
+        let file = include_str!("test_resources/object_array.etoml");
         let file = EToml::try_from(file).unwrap();
         let object_len = file
             .tables
@@ -853,13 +853,13 @@ mod tests {
     }
     #[test]
     pub fn test_raw_string() {
-        let file = include_str!("test_resources/test_raw_string.cfg");
+        let file = include_str!("test_resources/test_raw_string.etoml");
         let file = EToml::try_from(file).unwrap();
         println!("{:?}", file);
     }
     #[test]
     pub fn test_object_with_comma() {
-        let file = include_str!("test_resources/object_with_comma.cfg");
+        let file = include_str!("test_resources/object_with_comma.etoml");
         let file = EToml::try_from(file).unwrap();
         println!("{:?}", file);
     }
@@ -881,7 +881,7 @@ mod tests {
     }
     #[test]
     pub fn component_test() {
-        let file = include_str!("test_resources/test_component.cfg");
+        let file = include_str!("test_resources/test_component.etoml");
         let file = EToml::try_from(file).unwrap();
         let component = file.component_section_definitions.values().next().unwrap();
         let section = component
@@ -903,7 +903,7 @@ mod tests {
     }
     #[test]
     pub fn component_test_global() {
-        let file = include_str!("test_resources/test_component_with_global.cfg");
+        let file = include_str!("test_resources/test_component_with_global.etoml");
         let file = EToml::try_from(file).unwrap();
         println!("{:#?}", file);
         assert!(file.tables.contains_key("test_component_section"));

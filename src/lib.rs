@@ -103,20 +103,20 @@ mod tests {
 
     #[test]
     pub fn test_derive() {
-        let file = include_str!("test_resources/test_derive.cfg");
+        let file = include_str!("test_resources/test_derive.etoml");
         let ts = Wrapper::from_str(file).unwrap();
         println!("{:?}", ts);
     }
 
     #[test]
     pub fn test_proxy() {
-        let file = include_str!("test_resources/test.cfg");
+        let file = include_str!("test_resources/test.etoml");
         let ts = HostConfig::from_str(file).unwrap();
         println!("{:?}", ts);
     }
      #[test]
     pub fn test_invalid_syntax() {
-        let file = include_str!("test_resources/test_invalid_syntax.cfg");
+        let file = include_str!("test_resources/test_invalid_syntax.etoml");
         assert!(HostConfig::from_str(file).is_err());
     }
 }
