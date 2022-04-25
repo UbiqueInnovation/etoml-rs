@@ -31,7 +31,9 @@ impl EToml {
                 } else {
                     return Value::Null;
                 };
-                component.call(values)
+                component
+                    .call(values, self.global_symbols.clone())
+                    .unwrap_or(Value::Null)
             }
             Rule::array => {
                 let mut inner_values = vec![];
@@ -184,7 +186,7 @@ impl TryFrom<&str> for EToml {
                             )
                         })?;
                     let section = component
-                        .call(values)
+                        .call(values, config_file.global_symbols.clone())
                         .ok_or_else(|| "rendering of component failed".to_string())?;
                     config_file
                         .tables
@@ -259,48 +261,11 @@ impl EToml {
         let original_symbols = self.global_symbols.clone();
         let global_functions = self.global_functions.clone();
 
-        for _ in 0..=100 {
-            let result =
-                self.global_symbols
-                    .keys()
-                    .fold(original_symbols.clone(), |mut symbols, key| {
-                        let tmp_symbols = symbols.clone();
-                        let property = symbols.entry(key.to_string()).or_insert(Value::Null);
-                        match property {
-                            Value::Identifier(ref name, value) => {
-                                if let Some(global_func) = global_functions.get(name) {
-                                    *value = Box::new(Value::Function(global_func.clone()));
-                                } else if let Some(global_symbol) = get_property(&tmp_symbols, name)
-                                {
-                                    *value = Box::new(global_symbol.clone());
-                                }
-                            }
-                            Value::Object(inner) => {
-                                let mut values: Vec<&mut Value> = inner.values_mut().collect();
-                                if render_inner(&global_functions, &tmp_symbols, &mut values)
-                                    .is_err()
-                                {
-                                    return HashMap::new();
-                                }
-                            }
-                            Value::Array(inner_array) => {
-                                let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
-                                if render_inner(&global_functions, &tmp_symbols, &mut values)
-                                    .is_err()
-                                {
-                                    return HashMap::new();
-                                }
-                            }
-                            _ => {}
-                        }
-                        symbols
-                    });
-            self.global_symbols = result;
-            let vals: Vec<&Value> = self.global_symbols.values().collect();
-            if !has_null_identifier(&vals) {
-                break;
-            }
-        }
+        resolve_globals(
+            &mut self.global_symbols,
+            &global_functions,
+            &original_symbols,
+        );
         for object in self.tables.values_mut() {
             for (_, property) in object.object_iter_mut() {
                 match property {
@@ -662,6 +627,9 @@ impl TryFrom<&str> for Type {
     }
 }
 
+pub trait Render<T> {
+    fn call(&self, arguments: Vec<Value>, global_symbols: HashMap<String, Value>) -> Option<T>;
+}
 #[derive(Clone, Debug)]
 pub struct Component<T> {
     pub name: String,
@@ -682,10 +650,64 @@ pub struct Section {
     pub properties: HashMap<String, Value>,
 }
 
-impl Component<Section> {
-    pub fn call(&self, arguments: Vec<Value>) -> Option<Section> {
-        let global_symbols: HashMap<String, Value> =
-            self.arguments.iter().cloned().zip(arguments).collect();
+fn resolve_globals(
+    global_symbols: &mut HashMap<String, Value>,
+    global_functions: &HashMap<String, Function>,
+    original_symbols: &HashMap<String, Value>,
+) {
+    for _ in 0..=100 {
+        let result = global_symbols
+            .keys()
+            .fold(original_symbols.clone(), |mut symbols, key| {
+                let tmp_symbols = symbols.clone();
+                let property = symbols.entry(key.to_string()).or_insert(Value::Null);
+                match property {
+                    Value::Identifier(ref name, value) => {
+                        if let Some(global_func) = global_functions.get(name) {
+                            *value = Box::new(Value::Function(global_func.clone()));
+                        } else if let Some(global_symbol) = get_property(&tmp_symbols, name) {
+                            *value = Box::new(global_symbol.clone());
+                        }
+                    }
+                    Value::Object(inner) => {
+                        let mut values: Vec<&mut Value> = inner.values_mut().collect();
+                        if render_inner(global_functions, &tmp_symbols, &mut values).is_err() {
+                            return HashMap::new();
+                        }
+                    }
+                    Value::Array(inner_array) => {
+                        let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                        if render_inner(global_functions, &tmp_symbols, &mut values).is_err() {
+                            return HashMap::new();
+                        }
+                    }
+                    _ => {}
+                }
+                symbols
+            });
+        *global_symbols = result;
+        let vals: Vec<&Value> = global_symbols.values().collect();
+        if !has_null_identifier(&vals) {
+            break;
+        }
+    }
+}
+
+impl Render<Section> for Component<Section> {
+    fn call(
+        &self,
+        arguments: Vec<Value>,
+        global_symbols: HashMap<String, Value>,
+    ) -> Option<Section> {
+        let mut global_symbols: HashMap<String, Value> = self
+            .arguments
+            .iter()
+            .cloned()
+            .zip(arguments)
+            .chain(global_symbols.into_iter())
+            .collect();
+        let original_symbols = global_symbols.clone();
+        resolve_globals(&mut global_symbols, &HashMap::new(), &original_symbols);
         let mut name = self.body.name.clone();
         println!("{:?}", global_symbols);
         for (key, value) in &global_symbols {
@@ -717,25 +739,32 @@ impl Component<Section> {
         })
     }
 }
-impl Component<Value> {
-    pub fn call(&self, arguments: Vec<Value>) -> Value {
-        let global_symbols: HashMap<String, Value> =
-            self.arguments.iter().cloned().zip(arguments).collect();
+impl Render<Value> for crate::parser::Component<Value> {
+    fn call(&self, arguments: Vec<Value>, global_symbols: HashMap<String, Value>) -> Option<Value> {
+        let mut global_symbols: HashMap<String, Value> = self
+            .arguments
+            .iter()
+            .cloned()
+            .zip(arguments)
+            .chain(global_symbols.into_iter())
+            .collect();
+        let original_symbols = global_symbols.clone();
+        resolve_globals(&mut global_symbols, &HashMap::new(), &original_symbols);
         let mut values = vec![self.body.clone()];
         let mut refs: Vec<&mut Value> = values.iter_mut().collect();
         if render_inner(&HashMap::new(), &global_symbols, &mut refs).is_ok() {
-            values[0].clone()
+            Some(values[0].clone())
         } else {
-            Value::Null
+            Some(Value::Null)
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
+    use std::{collections::HashMap, convert::TryFrom};
 
-    use crate::etoml;
+    use crate::{etoml, parser::Render};
 
     use super::{EToml, Value};
 
@@ -856,7 +885,10 @@ mod tests {
         let file = EToml::try_from(file).unwrap();
         let component = file.component_section_definitions.values().next().unwrap();
         let section = component
-            .call(vec![Value::String("test".to_string()), Value::Number(1.0)])
+            .call(
+                vec![Value::String("test".to_string()), Value::Number(1.0)],
+                HashMap::new(),
+            )
             .unwrap();
         println!("{:#?}", file);
         println!("{:?}", section);
@@ -868,5 +900,12 @@ mod tests {
             panic!("whaaaat");
         };
         assert!(matches!(inner_value.as_ref(), Value::Number(a) if a.eq(&1.0)));
+    }
+    #[test]
+    pub fn component_test_global() {
+        let file = include_str!("test_resources/test_component_with_global.cfg");
+        let file = EToml::try_from(file).unwrap();
+        println!("{:#?}", file);
+        assert!(file.tables.contains_key("test_component_section"));
     }
 }
