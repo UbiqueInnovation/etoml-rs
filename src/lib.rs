@@ -114,4 +114,9 @@ mod tests {
         let ts = HostConfig::from_str(file).unwrap();
         println!("{:?}", ts);
     }
+     #[test]
+    pub fn test_invalid_syntax() {
+        let file = include_str!("test_resources/test_invalid_syntax.cfg");
+        assert!(HostConfig::from_str(file).is_err());
+    }
 }

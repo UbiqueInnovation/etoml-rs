@@ -11,4 +11,4 @@ syn = "1.0.48"
 quote = "1.0.7"
 
 [dev-dependencies]
-etoml-derive = {git = "https://github.com/UbiqueInnovation/etoml-derive.git"}
+etoml-derive = {git = "https://github.com/UbiqueInnovation/etoml-derive.git", rev = "e47d62b"}
