@@ -68,6 +68,10 @@ impl EToml {
                 }
                 Value::Object(inner_values)
             }
+            Rule::environment_variable => {
+                let env_var_name = inner_value.into_inner().next().unwrap();
+                Value::Environment(env_var_name.as_str().to_string())
+            }
             _ => Value::Null,
         }
     }
@@ -492,6 +496,7 @@ pub enum Value {
     Identifier(String, Box<Value>),
     Function(Function),
     Object(HashMap<String, Value>),
+    Environment(String),
     Null,
 }
 
@@ -533,6 +538,10 @@ impl Value {
             Some(*b)
         } else if let Value::Identifier(_, obj) = self {
             obj.as_bool()
+        } else if let Value::Environment(env_var) = self {
+            std::env::var(env_var)
+                .ok()
+                .and_then(|a| a.parse::<bool>().ok())
         } else {
             None
         }
@@ -542,6 +551,9 @@ impl Value {
             Some(s.to_owned())
         } else if let Value::Identifier(_, obj) = self {
             obj.as_string()
+        } else if let Value::Environment(env_var) = self {
+            println!("try getting from env");
+            std::env::var(env_var).ok()
         } else {
             None
         }
@@ -569,6 +581,10 @@ impl Value {
             Some(*n as i128)
         } else if let Value::Identifier(_, obj) = self {
             obj.as_integer()
+        } else if let Value::Environment(env_var) = self {
+            std::env::var(env_var)
+                .ok()
+                .and_then(|a| a.parse::<i128>().ok())
         } else {
             None
         }
@@ -578,6 +594,10 @@ impl Value {
             Some(*n)
         } else if let Value::Identifier(_, obj) = self {
             obj.as_float()
+        } else if let Value::Environment(env_var) = self {
+            std::env::var(env_var)
+                .ok()
+                .and_then(|a| a.parse::<f64>().ok())
         } else {
             None
         }
@@ -907,5 +927,16 @@ mod tests {
         let file = EToml::try_from(file).unwrap();
         println!("{:#?}", file);
         assert!(file.tables.contains_key("test_component_section"));
+    }
+
+    #[test]
+    pub fn test_env_var() {
+        let file = include_str!("test_resources/test_env_var.etoml");
+        let file = EToml::try_from(file).unwrap();
+
+        assert_eq!(
+            file.global_symbols.get("env_path").unwrap().as_string(),
+            Some("0.1.0".to_string())
+        );
     }
 }

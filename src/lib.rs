@@ -26,7 +26,9 @@ macro_rules! etoml {
 }
 
 #[cfg(test)]
+#[allow(dead_code, unused_assignments)]
 mod tests {
+    
     use std::collections::HashMap;
 
     use crate as etoml;

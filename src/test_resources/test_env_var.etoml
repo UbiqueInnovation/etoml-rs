@@ -1,0 +1,2 @@
+global env_path = ${CARGO_PKG_VERSION}
+ 
