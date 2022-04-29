@@ -64,7 +64,7 @@ impl<T: crate::Deserialize<Item = T>> crate::Deserialize for HashMap<String, T> 
 #[cfg(test)]
 #[allow(dead_code, unused_assignments)]
 mod tests {
-    use crate::Deserialize;
+    use crate::{Deserialize, Value};
     use std::collections::HashMap;
 
     use crate as etoml;
@@ -139,6 +139,30 @@ mod tests {
         pub cookie_store: Option<String>,
     }
 
+    #[test]
+    pub fn test_enum() {
+        #[derive(etoml_derive::Deserialize)]
+        struct Test {
+            inner : MyEnum
+        }
+        #[derive(etoml_derive::Deserialize, Clone, Debug, PartialEq)]
+        enum MyEnum {
+            A,
+            B
+        }
+
+        let a = "a";
+        assert_eq!(MyEnum::from_str(a).unwrap(), MyEnum::A);
+
+        let b = Value::String("B".to_string());
+        assert_eq!(MyEnum::from_value(b, Value::Null).unwrap(), MyEnum::B);
+        let file = r#"
+        [test]
+            inner = "B"
+        "#;
+        let t = Test::from_str(file).unwrap();
+        assert_eq!(t.inner, MyEnum::B);
+    }
     #[test]
     pub fn test_map() {
         let file = include_str!("test_resources/test_map.etoml");
