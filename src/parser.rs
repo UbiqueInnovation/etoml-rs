@@ -44,6 +44,40 @@ impl EToml {
             }
             Rule::function => Value::Null,
             Rule::number => Value::Number(inner_value.as_str().parse().unwrap()),
+            Rule::string_concat => {
+                let mut inner_values = inner_value.into_inner();
+                let first_value = inner_values.next().unwrap();
+                let mut start_string = match first_value.as_rule() {
+                    Rule::string => first_value
+                        .into_inner()
+                        .next()
+                        .unwrap()
+                        .as_str()
+                        .to_string(),
+                    Rule::environment_variable => {
+                        let env_key = first_value
+                            .into_inner()
+                            .next()
+                            .unwrap()
+                            .as_str()
+                            .to_string();
+
+                        std::env::var(env_key).unwrap_or_else(|_| String::default())
+                    }
+                    _ => String::default(),
+                };
+                for next in inner_values {
+                    start_string.push_str(&match next.as_rule() {
+                        Rule::string => next.into_inner().next().unwrap().as_str().to_string(),
+                        Rule::environment_variable => {
+                            let env_key = next.into_inner().next().unwrap().as_str().to_string();
+                            std::env::var(env_key).unwrap_or_else(|_| String::default())
+                        }
+                        _ => String::default(),
+                    });
+                }
+                Value::String(start_string)
+            }
             Rule::string => Value::String(
                 inner_value
                     .into_inner()
@@ -938,5 +972,11 @@ mod tests {
             file.global_symbols.get("env_path").unwrap().as_string(),
             Some("0.1.0".to_string())
         );
+    }
+    #[test]
+    pub fn test_string_concat() {
+        let file = include_str!("test_resources/test_string_concat.etoml");
+        let file = EToml::try_from(file).unwrap();
+        println!("{:?}", file);
     }
 }

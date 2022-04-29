@@ -11,7 +11,8 @@ property = {key ~ "=" ~ value }
 config_element = { property ~ (!(";" ~",") ~ ";" )? }
 
 key = @{ identifier ~ ("." ~ identifier)* }
-value = { component_use| string | bool|function | key   | number | array | object | environment_variable }
+
+value = { component_use| string_concat | bool|function | key   | number | array | object }
 array = { "[" ~ (value ~  ("," ~ value)*)? ~ ","? ~ "]" }
 
 object = {
@@ -26,8 +27,9 @@ number = {scientific | float | integer}
 float = @{ "-"? ~ ASCII_DIGIT+ ~( "." ~ ASCII_DIGIT*)? }
 scientific = @{ float ~ ("E" | "e") ~ float }
 integer = @{ ASCII_DIGIT+ }
-
 environment_variable = {"${" ~ identifier ~ "}"}
+
+string_concat = { (environment_variable | string) ~ ("+" ~ (environment_variable | string))* }
 
 normal_string = {PUSH("\"") ~ WHITESPACE* ~ string_content ~ WHITESPACE* ~ POP }
 string = @{raw_string | normal_string}
