@@ -3,7 +3,7 @@
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub mod parser;
 use parser::{Component, Section};
@@ -58,6 +58,48 @@ impl<T: crate::Deserialize<Item = T>> crate::Deserialize for HashMap<String, T> 
         let value = Value::Object(file.tables);
         let global_symbol_table = Value::Object(file.global_symbols);
         Self::from_value(value, global_symbol_table)
+    }
+}
+
+impl<T: crate::Deserialize<Item = T>> crate::Deserialize for BTreeMap<String, T> {
+    type Item = HashMap<String, T>;
+
+    type Error = Box<dyn std::error::Error>;
+
+    fn from_value(v: Value, global_symbol_table: Value) -> Result<Self::Item, Self::Error> {
+        let map = v
+            .as_object()
+            .ok_or_else(|| "top level needs to be object".to_string())?;
+        let mut new_map: HashMap<String, T> = HashMap::new();
+        for (key, value) in map {
+            if let Ok(conversion) = T::from_value(value, global_symbol_table.clone()) {
+                new_map.insert(key, conversion);
+            } else {
+                return Err("Could not convert object".to_string().into());
+            }
+        }
+        Ok(new_map)
+    }
+
+    fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
+        let file = EToml::try_from(input).map_err(|e| format!("{:?}", e))?;
+
+        let value = Value::Object(file.tables);
+        let global_symbol_table = Value::Object(file.global_symbols);
+        Self::from_value(value, global_symbol_table)
+    }
+}
+
+impl Deserialize for String {
+    type Item = String;
+    type Error = Box<dyn std::error::Error>;
+
+    fn from_value(v: Value, _: Value) -> Result<Self::Item, Self::Error> {
+        v.as_string().ok_or_else(|| "string must be string".into())
+    }
+
+    fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
+        Ok(input.to_string())
     }
 }
 
@@ -143,12 +185,12 @@ mod tests {
     pub fn test_enum() {
         #[derive(etoml_derive::Deserialize)]
         struct Test {
-            inner : MyEnum
+            inner: MyEnum,
         }
         #[derive(etoml_derive::Deserialize, Clone, Debug, PartialEq)]
         enum MyEnum {
             A,
-            B
+            B,
         }
 
         let a = "a";
