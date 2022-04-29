@@ -1,0 +1,6 @@
+[first]
+inner_name = "test"
+test = true
+[second]
+inner_name = "second"
+test = false

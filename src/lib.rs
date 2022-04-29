@@ -25,10 +25,46 @@ macro_rules! etoml {
     };
 }
 
+pub trait Deserialize {
+    type Item;
+    type Error;
+    fn from_value(v: Value, global_symbol_table: Value) -> Result<Self::Item, Self::Error>;
+    fn from_str(input: &str) -> Result<Self::Item, Self::Error>;
+}
+
+impl<T: crate::Deserialize<Item = T>> crate::Deserialize for HashMap<String, T> {
+    type Item = HashMap<String, T>;
+
+    type Error = Box<dyn std::error::Error>;
+
+    fn from_value(v: Value, global_symbol_table: Value) -> Result<Self::Item, Self::Error> {
+        let map = v
+            .as_object()
+            .ok_or_else(|| "top level needs to be object".to_string())?;
+        let mut new_map: HashMap<String, T> = HashMap::new();
+        for (key, value) in map {
+            if let Ok(conversion) = T::from_value(value, global_symbol_table.clone()) {
+                new_map.insert(key, conversion);
+            } else {
+                return Err("Could not convert object".to_string().into());
+            }
+        }
+        Ok(new_map)
+    }
+
+    fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
+        let file = EToml::try_from(input).map_err(|e| format!("{:?}", e))?;
+
+        let value = Value::Object(file.tables);
+        let global_symbol_table = Value::Object(file.global_symbols);
+        Self::from_value(value, global_symbol_table)
+    }
+}
+
 #[cfg(test)]
 #[allow(dead_code, unused_assignments)]
 mod tests {
-    
+    use crate::Deserialize;
     use std::collections::HashMap;
 
     use crate as etoml;
@@ -104,6 +140,12 @@ mod tests {
     }
 
     #[test]
+    pub fn test_map() {
+        let file = include_str!("test_resources/test_map.etoml");
+        let the_map = HashMap::<String, InnerStruct>::from_str(file);
+        println!("{:?}", the_map);
+    }
+    #[test]
     pub fn test_derive() {
         let file = include_str!("test_resources/test_derive.etoml");
         let ts = Wrapper::from_str(file).unwrap();
@@ -116,7 +158,7 @@ mod tests {
         let ts = HostConfig::from_str(file).unwrap();
         println!("{:?}", ts);
     }
-     #[test]
+    #[test]
     pub fn test_invalid_syntax() {
         let file = include_str!("test_resources/test_invalid_syntax.etoml");
         assert!(HostConfig::from_str(file).is_err());
