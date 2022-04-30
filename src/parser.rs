@@ -289,7 +289,18 @@ impl EToml {
                         } else if let Some(global_symbol) =
                             get_property_mut(&mut self.global_symbols, name)
                         {
-                            *value = Box::new(global_symbol.clone());
+                            let mut new_symbol = global_symbol.clone();
+                            if let Value::Array(inner_array) | Value::Concat(inner_array) =
+                                &mut new_symbol
+                            {
+                                let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                                render_inner(
+                                    &self.global_functions,
+                                    &self.global_symbols,
+                                    &mut values,
+                                )?;
+                            }
+                            *value = Box::new(new_symbol);
                         } else {
                             return Err(format!("'{}' not declared", name));
                         }
@@ -729,7 +740,14 @@ fn resolve_globals(
                         if let Some(global_func) = global_functions.get(name) {
                             *value = Box::new(Value::Function(global_func.clone()));
                         } else if let Some(global_symbol) = get_property(&tmp_symbols, name) {
-                            *value = Box::new(global_symbol.clone());
+                            let mut new_symbol = global_symbol.clone();
+                            if let Value::Array(inner_array) | Value::Concat(inner_array) =
+                                &mut new_symbol
+                            {
+                                let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                                let _ = render_inner(global_functions, global_symbols, &mut values);
+                            }
+                            *value = Box::new(new_symbol);
                         }
                     }
                     Value::Object(inner) => {
@@ -1017,8 +1035,21 @@ mod tests {
                 .unwrap(),
             "blubother_yeah"
         );
-        let new_array: Vec<String> = file.tables["test"].get("new_array").as_array().unwrap().iter().map(|a|a.as_string().unwrap()).collect();
-        assert_eq!(new_array, ["test".to_string(), "blubother_yeah".to_string(),"last".to_string()]);
+        let new_array: Vec<String> = file.tables["test"]
+            .get("new_array")
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_string().unwrap())
+            .collect();
+        assert_eq!(
+            new_array,
+            [
+                "test".to_string(),
+                "blubother_yeah".to_string(),
+                "last".to_string()
+            ]
+        );
         println!("{:#?}", file);
     }
 }
