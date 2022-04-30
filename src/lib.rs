@@ -9,7 +9,7 @@ pub mod parser;
 use parser::{Component, Section};
 pub use parser::{Function, Value};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EToml {
     pub tables: HashMap<String, Value>,
     pub global_symbols: HashMap<String, Value>,
@@ -100,21 +100,6 @@ impl Deserialize for String {
 
     fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
         Ok(input.to_string())
-    }
-}
-
-impl Deserialize for Value {
-    type Item = Value;
-
-    type Error = Box<dyn std::error::Error>;
-
-    fn from_value(v: Value, _: Value) -> Result<Self::Item, Self::Error> {
-        Ok(v)
-    }
-
-    fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
-        let etoml = EToml::try_from(input)?;
-        Ok(Value::Object(etoml.tables))
     }
 }
 

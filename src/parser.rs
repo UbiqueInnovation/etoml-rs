@@ -12,7 +12,28 @@ use std::{
 
 use pest::{iterators::Pair, Parser};
 
-use crate::EToml;
+use crate::{Deserialize, EToml};
+
+impl Deserialize for Value {
+    type Item = Value;
+
+    type Error = Box<dyn std::error::Error>;
+
+    fn from_value(v: Value, _: Value) -> Result<Self::Item, Self::Error> {
+        Ok(v)
+    }
+
+    fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
+        if let Ok(mut proxy_parser) = ProxyConfigParser::parse(Rule::value_no_key, input) {
+            let etoml = EToml::default();
+            let value =
+                etoml.extract_value(proxy_parser.next().unwrap().into_inner().next().unwrap());
+            return Ok(value);
+        }
+        let etoml = EToml::try_from(input)?;
+        Ok(Value::Object(etoml.tables))
+    }
+}
 
 impl EToml {
     pub fn extract_value(&self, inner_value: Pair<Rule>) -> Value {
@@ -1123,6 +1144,21 @@ mod tests {
     fn test_direct_object() {
         let file = include_str!("test_resources/test_direct_object.etoml");
         let val = Value::from_str(file).unwrap();
-        assert_eq!(&val.get("blarg").as_array().unwrap()[1].as_string().unwrap(), "yeah");
+        assert_eq!(
+            &val.get("blarg").as_array().unwrap()[1].as_string().unwrap(),
+            "yeah"
+        );
+    }
+    #[test]
+    fn test_value() {
+        let val = Value::from_str("[1,2,4]").unwrap();
+        assert_eq!(
+            val.as_array().unwrap(),
+            [Value::Number(1.0), Value::Number(2.0), Value::Number(4.0)]
+        );
+        let val = Value::from_str(r#""test""#).unwrap();
+        assert_eq!(val.as_string().unwrap(), "test");
+        let val = Value::from_str("1").unwrap();
+        assert_eq!(val.as_integer().unwrap(), 1);
     }
 }

@@ -12,6 +12,7 @@ config_element = { property ~ (!(";" ~",") ~ ";" )? }
 
 key = @{ identifier ~ ("." ~ identifier)* }
 
+value_no_key = {string_concat| component_use | string | environment_variable | bool|function | number | array | object}
 value = {  string_concat| component_use | string | environment_variable | bool|function | key | number | array | object}
 array = { "[" ~ (value ~  ("," ~ value)*)? ~ ","? ~ "]" }
 
