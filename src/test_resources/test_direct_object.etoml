@@ -1,0 +1,6 @@
+global test_global = "yeah"
+test = "1"
+other = "2"
+blarg = ["test", test_global]
+[blub]
+inner_array = [1,2]

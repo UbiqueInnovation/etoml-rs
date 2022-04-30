@@ -1,4 +1,4 @@
-config_file = { SOI ~ "{"? ~ (component_use | section | function | global_symbol | component_definition)* ~ "}"? ~ EOI }
+config_file = { SOI ~ "{"? ~ (component_use | section | function | global_symbol | component_definition | property)* ~ "}"? ~ EOI }
 
 global_symbol = {"global" ~ property ~ ";"?}
 

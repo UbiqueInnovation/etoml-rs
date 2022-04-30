@@ -225,6 +225,13 @@ impl TryFrom<&str> for EToml {
                         .tables
                         .insert(host.to_string(), Value::Object(properties));
                 }
+                Rule::property => {
+                    let mut inner_rules = r.into_inner();
+                    let name = inner_rules.next().unwrap().as_str();
+                    let value = config_file
+                        .extract_value(inner_rules.next().unwrap().into_inner().next().unwrap());
+                    config_file.tables.insert(name.to_string(), value);
+                }
                 Rule::function => {
                     let mut inner_values = r.into_inner();
                     let name = inner_values.next().unwrap();
@@ -281,7 +288,67 @@ impl EToml {
             &original_symbols,
         );
         for object in self.tables.values_mut() {
+            match object {
+                Value::Identifier(ref name, value) if matches!(value.as_ref(), Value::Null) => {
+                    if let Some(global_func) = self.global_functions.get(name) {
+                        *value = Box::new(Value::Function(global_func.clone()));
+                    } else if let Some(global_symbol) =
+                        get_property_mut(&mut self.global_symbols, name)
+                    {
+                        let mut new_symbol = global_symbol.clone();
+                        if let Value::Array(inner_array) | Value::Concat(inner_array) =
+                            &mut new_symbol
+                        {
+                            let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                            render_inner(
+                                &self.global_functions,
+                                &self.global_symbols,
+                                &mut values,
+                            )?;
+                        }
+                        *value = Box::new(new_symbol);
+                    } else {
+                        return Err(format!("'{}' not declared", name));
+                    }
+                }
+                _ => {}
+            }
             for (_, property) in object.object_iter_mut() {
+                match property {
+                    Value::Identifier(ref name, value) if matches!(value.as_ref(), Value::Null) => {
+                        if let Some(global_func) = self.global_functions.get(name) {
+                            *value = Box::new(Value::Function(global_func.clone()));
+                        } else if let Some(global_symbol) =
+                            get_property_mut(&mut self.global_symbols, name)
+                        {
+                            let mut new_symbol = global_symbol.clone();
+                            if let Value::Array(inner_array) | Value::Concat(inner_array) =
+                                &mut new_symbol
+                            {
+                                let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                                render_inner(
+                                    &self.global_functions,
+                                    &self.global_symbols,
+                                    &mut values,
+                                )?;
+                            }
+                            *value = Box::new(new_symbol);
+                        } else {
+                            return Err(format!("'{}' not declared", name));
+                        }
+                    }
+                    Value::Object(inner) => {
+                        let mut values: Vec<&mut Value> = inner.values_mut().collect();
+                        render_inner(&self.global_functions, &self.global_symbols, &mut values)?;
+                    }
+                    Value::Array(inner_array) | Value::Concat(inner_array) => {
+                        let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                        render_inner(&self.global_functions, &self.global_symbols, &mut values)?;
+                    }
+                    _ => {}
+                }
+            }
+            for property in object.array_iter_mut() {
                 match property {
                     Value::Identifier(ref name, value) if matches!(value.as_ref(), Value::Null) => {
                         if let Some(global_func) = self.global_functions.get(name) {
@@ -845,7 +912,7 @@ impl Render<Value> for crate::parser::Component<Value> {
 mod tests {
     use std::{collections::HashMap, convert::TryFrom};
 
-    use crate::{etoml, parser::Render};
+    use crate::{etoml, parser::Render, Deserialize};
 
     use super::{EToml, Value};
 
@@ -1051,5 +1118,11 @@ mod tests {
             ]
         );
         println!("{:#?}", file);
+    }
+    #[test]
+    fn test_direct_object() {
+        let file = include_str!("test_resources/test_direct_object.etoml");
+        let val = Value::from_str(file).unwrap();
+        assert_eq!(&val.get("blarg").as_array().unwrap()[1].as_string().unwrap(), "yeah");
     }
 }
