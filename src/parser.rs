@@ -116,7 +116,7 @@ impl TryFrom<&str> for EToml {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let parsed = ProxyConfigParser::parse(Rule::config_file, value)
-            .map_err(|e| format!("{:?}", e))?
+            .map_err(|e| format!("{}", e))?
             .next()
             .unwrap();
 
