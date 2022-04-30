@@ -25,6 +25,10 @@ macro_rules! etoml {
     };
 }
 
+pub fn from_str<Value: crate::Deserialize>(input : &str) -> Result<Value::Item, Value::Error> {
+    Value::from_str(input)
+}
+
 pub trait Deserialize {
     type Item;
     type Error;
@@ -106,7 +110,7 @@ impl Deserialize for String {
 #[cfg(test)]
 #[allow(dead_code, unused_assignments)]
 mod tests {
-    use crate::{Deserialize, Value};
+    use crate::{Deserialize, Value, from_str};
     use std::collections::HashMap;
 
     use crate as etoml;
@@ -215,6 +219,7 @@ mod tests {
     pub fn test_derive() {
         let file = include_str!("test_resources/test_derive.etoml");
         let ts = Wrapper::from_str(file).unwrap();
+        let ts: Wrapper = from_str::<Wrapper>(file).unwrap();
         println!("{:?}", ts);
     }
 
