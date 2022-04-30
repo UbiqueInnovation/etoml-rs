@@ -1,0 +1,16 @@
+global test_string = "blub"
+global concat_string = "blub" + "other"
+global concat_with_global = concat_string + "_yeah"
+
+component[value] test_array(outer) {
+    [
+        "test",
+        outer
+    ]
+}
+[test]
+concat_env = ${CARGO_PKG_VERSION} + "_" + 1 + "_" + test_string
+test_array = [1] + [2]
+test_number = 1 + 2
+test_float = 1.3 + 0.1
+new_array = @test_array(concat_with_global) + ["last"]

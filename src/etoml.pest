@@ -12,7 +12,7 @@ config_element = { property ~ (!(";" ~",") ~ ";" )? }
 
 key = @{ identifier ~ ("." ~ identifier)* }
 
-value = { component_use| string_concat | bool|function | key   | number | array | object }
+value = {  string_concat| component_use | string | environment_variable | bool|function | key | number | array | object}
 array = { "[" ~ (value ~  ("," ~ value)*)? ~ ","? ~ "]" }
 
 object = {
@@ -28,8 +28,8 @@ float = @{ "-"? ~ ASCII_DIGIT+ ~( "." ~ ASCII_DIGIT*)? }
 scientific = @{ float ~ ("E" | "e") ~ float }
 integer = @{ ASCII_DIGIT+ }
 environment_variable = {"${" ~ identifier ~ "}"}
-
-string_concat = { (environment_variable | string) ~ ("+" ~ (environment_variable | string))* }
+value_without_string_concat = { string | environment_variable |component_use | bool|function | key | number | array | object }
+string_concat = { value_without_string_concat ~ ("+" ~ value_without_string_concat)+ }
 
 normal_string = {PUSH("\"") ~ WHITESPACE* ~ string_content ~ WHITESPACE* ~ POP }
 string = @{raw_string | normal_string}
@@ -42,8 +42,11 @@ function_argument = { identifier ~ ":" ~ function_type }
 function_body = { (statement)* }
 statement = { "let " ~ identifier ~  "=" ~ value ~ ";" }
 
-component_type = { "section" | "value"}
-component_definition = { "component" ~"[" ~ component_type ~"]" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~")" ~ "{" ~ (section | value)+ ~ "}"}
+component_type_value = {"value"}
+component_type_section = {"section"}
+component_definition_value =  !{ "component" ~"[" ~ component_type_value ~"]" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~")" ~ "{" ~ value+ ~ "}"}
+component_definition_section =  !{ "component" ~"[" ~ component_type_section ~"]" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~")" ~ "{" ~ section+ ~ "}"}
+component_definition = {component_definition_section | component_definition_value}
 component_use = {"@" ~ identifier ~"(" ~ (value ~ ("," ~ value)* )? ~ ")" ~ ""}
 
 function_type = {

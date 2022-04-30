@@ -45,38 +45,13 @@ impl EToml {
             Rule::function => Value::Null,
             Rule::number => Value::Number(inner_value.as_str().parse().unwrap()),
             Rule::string_concat => {
-                let mut inner_values = inner_value.into_inner();
-                let first_value = inner_values.next().unwrap();
-                let mut start_string = match first_value.as_rule() {
-                    Rule::string => first_value
-                        .into_inner()
-                        .next()
-                        .unwrap()
-                        .as_str()
-                        .to_string(),
-                    Rule::environment_variable => {
-                        let env_key = first_value
-                            .into_inner()
-                            .next()
-                            .unwrap()
-                            .as_str()
-                            .to_string();
-
-                        std::env::var(env_key).unwrap_or_else(|_| String::default())
-                    }
-                    _ => String::default(),
-                };
+                let inner_values = inner_value.into_inner();
+                let mut values = vec![];
                 for next in inner_values {
-                    start_string.push_str(&match next.as_rule() {
-                        Rule::string => next.into_inner().next().unwrap().as_str().to_string(),
-                        Rule::environment_variable => {
-                            let env_key = next.into_inner().next().unwrap().as_str().to_string();
-                            std::env::var(env_key).unwrap_or_else(|_| String::default())
-                        }
-                        _ => String::default(),
-                    });
+                    let val = self.extract_value(next.into_inner().next().unwrap());
+                    values.push(val);
                 }
-                Value::String(start_string)
+                Value::Concat(values)
             }
             Rule::string => Value::String(
                 inner_value
@@ -135,7 +110,8 @@ impl TryFrom<&str> for EToml {
         for r in parsed.into_inner() {
             match r.as_rule() {
                 Rule::component_definition => {
-                    let mut inner_rules = r.into_inner();
+                    let mut inner_rules = r.into_inner().next().unwrap().into_inner();
+
                     let component_type = inner_rules.next().unwrap().as_str();
                     let identifier_name = inner_rules.next().unwrap().as_str();
                     let mut arguments: Vec<String> = vec![];
@@ -322,7 +298,7 @@ impl EToml {
                         let mut values: Vec<&mut Value> = inner.values_mut().collect();
                         render_inner(&self.global_functions, &self.global_symbols, &mut values)?;
                     }
-                    Value::Array(inner_array) => {
+                    Value::Array(inner_array) | Value::Concat(inner_array) => {
                         let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
                         render_inner(&self.global_functions, &self.global_symbols, &mut values)?;
                     }
@@ -437,7 +413,13 @@ fn render_inner(
                 if let Some(global_func) = global_functions.get(name) {
                     *value = Box::new(Value::Function(global_func.clone()));
                 } else if let Some(global_symbol) = get_property(global_symbols, name) {
-                    *value = Box::new(global_symbol.clone());
+                    let mut new_symbol = global_symbol.clone();
+                    if let Value::Array(inner_array) | Value::Concat(inner_array) = &mut new_symbol
+                    {
+                        let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
+                        render_inner(global_functions, global_symbols, &mut values)?;
+                    }
+                    *value = Box::new(new_symbol);
                 } else {
                     return Err(format!("'{}' not declared", name));
                 }
@@ -446,7 +428,7 @@ fn render_inner(
                 let mut values: Vec<&mut Value> = inner.values_mut().collect();
                 render_inner(global_functions, global_symbols, &mut values)?;
             }
-            Value::Array(inner_array) => {
+            Value::Array(inner_array) | Value::Concat(inner_array) => {
                 let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
                 render_inner(global_functions, global_symbols, &mut values)?;
             }
@@ -531,6 +513,7 @@ pub enum Value {
     Function(Function),
     Object(HashMap<String, Value>),
     Environment(String),
+    Concat(Vec<Value>),
     Null,
 }
 
@@ -576,6 +559,8 @@ impl Value {
             std::env::var(env_var)
                 .ok()
                 .and_then(|a| a.parse::<bool>().ok())
+        } else if let Value::Concat(inner) = self {
+            inner[0].as_bool()
         } else {
             None
         }
@@ -588,6 +573,16 @@ impl Value {
         } else if let Value::Environment(env_var) = self {
             println!("try getting from env");
             std::env::var(env_var).ok()
+        } else if let Value::Number(n) = self {
+            Some(n.to_string())
+        } else if let Value::Concat(inner_values) = self {
+            Some(
+                inner_values
+                    .iter()
+                    .filter_map(|a| a.as_string())
+                    .collect::<Vec<String>>()
+                    .join(""),
+            )
         } else {
             None
         }
@@ -597,6 +592,14 @@ impl Value {
             Some(a.to_owned())
         } else if let Value::Identifier(_, obj) = self {
             obj.as_array()
+        } else if let Value::Concat(inner) = self {
+            let mut val = vec![];
+            for v in inner {
+                if let Some(inner_array) = v.as_array() {
+                    val.extend(inner_array)
+                }
+            }
+            Some(val)
         } else {
             None
         }
@@ -606,6 +609,8 @@ impl Value {
             Some(obj.to_owned())
         } else if let Value::Identifier(_, obj) = self {
             obj.as_object()
+        } else if let Value::Concat(inner) = self {
+            inner[0].as_object()
         } else {
             None
         }
@@ -619,6 +624,8 @@ impl Value {
             std::env::var(env_var)
                 .ok()
                 .and_then(|a| a.parse::<i128>().ok())
+        } else if let Value::Concat(inner) = self {
+            Some(inner.iter().filter_map(|a| a.as_integer()).sum())
         } else {
             None
         }
@@ -632,6 +639,8 @@ impl Value {
             std::env::var(env_var)
                 .ok()
                 .and_then(|a| a.parse::<f64>().ok())
+        } else if let Value::Concat(inner) = self {
+            Some(inner.iter().filter_map(|a| a.as_float()).sum())
         } else {
             None
         }
@@ -729,7 +738,7 @@ fn resolve_globals(
                             return HashMap::new();
                         }
                     }
-                    Value::Array(inner_array) => {
+                    Value::Array(inner_array) | Value::Concat(inner_array) => {
                         let mut values: Vec<&mut Value> = inner_array.iter_mut().collect();
                         if render_inner(global_functions, &tmp_symbols, &mut values).is_err() {
                             return HashMap::new();
@@ -874,7 +883,7 @@ mod tests {
         let file = include_str!("test_resources/test_one_line.etoml");
         let file = EToml::try_from(file).unwrap();
         let test = &file.tables.values().next().unwrap().get("test");
-        assert!(matches!(test, Value::String(a) if a.as_str() == "test"));
+        assert_eq!(test.as_string(), Some("test".to_string()));
     }
     #[test]
     pub fn test_global_render() {
@@ -937,6 +946,7 @@ mod tests {
     pub fn component_test() {
         let file = include_str!("test_resources/test_component.etoml");
         let file = EToml::try_from(file).unwrap();
+        println!("{:#?}", file);
         let component = file.component_section_definitions.values().next().unwrap();
         let section = component
             .call(
@@ -944,7 +954,7 @@ mod tests {
                 HashMap::new(),
             )
             .unwrap();
-        println!("{:#?}", file);
+
         println!("{:?}", section);
         assert_eq!(section.name, "test");
         let inner_value = if let Value::Identifier(_, val) = section.properties.get("age").unwrap()
@@ -978,5 +988,37 @@ mod tests {
         let file = include_str!("test_resources/test_string_concat.etoml");
         let file = EToml::try_from(file).unwrap();
         println!("{:?}", file);
+    }
+    #[test]
+    pub fn test_general_concat() {
+        let file = include_str!("test_resources/test_concat.etoml");
+        let file = EToml::try_from(file).unwrap();
+        assert!(file.tables["test"].get("test_float").as_float().unwrap() - 1.4 < 0.001);
+        assert_eq!(
+            file.tables["test"].get("test_number").as_integer().unwrap(),
+            3
+        );
+        assert_eq!(
+            file.tables["test"]
+                .get("test_array")
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            file.tables["test"].get("concat_env").as_string().unwrap(),
+            "0.1.0_1_blub"
+        );
+
+        assert_eq!(
+            file.global_symbols["concat_with_global"]
+                .as_string()
+                .unwrap(),
+            "blubother_yeah"
+        );
+        let new_array: Vec<String> = file.tables["test"].get("new_array").as_array().unwrap().iter().map(|a|a.as_string().unwrap()).collect();
+        assert_eq!(new_array, ["test".to_string(), "blubother_yeah".to_string(),"last".to_string()]);
+        println!("{:#?}", file);
     }
 }
