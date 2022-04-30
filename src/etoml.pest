@@ -1,3 +1,7 @@
+/*
+We can either parse a config file or directly a value without external references
+*/
+value_no_key = {string_concat| component_use | string | environment_variable | bool|function | number | array | object}
 config_file = { SOI ~ "{"? ~ (component_use | section | function | global_symbol | component_definition | property)* ~ "}"? ~ EOI }
 
 global_symbol = {"global" ~ property ~ ";"?}
@@ -12,7 +16,6 @@ config_element = { property ~ (!(";" ~",") ~ ";" )? }
 
 key = @{ identifier ~ ("." ~ identifier)* }
 
-value_no_key = {string_concat| component_use | string | environment_variable | bool|function | number | array | object}
 value = {  string_concat| component_use | string | environment_variable | bool|function | key | number | array | object}
 array = { "[" ~ (value ~  ("," ~ value)*)? ~ ","? ~ "]" }
 

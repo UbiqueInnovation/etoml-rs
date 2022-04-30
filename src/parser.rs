@@ -1160,5 +1160,7 @@ mod tests {
         assert_eq!(val.as_string().unwrap(), "test");
         let val = Value::from_str("1").unwrap();
         assert_eq!(val.as_integer().unwrap(), 1);
+        let  val = Value::from_str("${CARGO_PKG_VERSION}").unwrap();
+        assert_eq!(val.as_string().unwrap(), "0.1.0");
     }
 }
