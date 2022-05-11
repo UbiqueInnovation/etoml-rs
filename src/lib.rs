@@ -189,6 +189,7 @@ mod tests {
     pub fn test_enum() {
         #[derive(etoml_derive::Deserialize)]
         struct Test {
+            #[from_global]
             inner: MyEnum,
         }
         #[derive(etoml_derive::Deserialize, Clone, Debug, PartialEq)]
@@ -203,8 +204,8 @@ mod tests {
         let b = Value::String("B".to_string());
         assert_eq!(MyEnum::from_value(b, Value::Null).unwrap(), MyEnum::B);
         let file = r#"
-        [test]
-            inner = "B"
+        
+        global inner = "B"
         "#;
         let t = Test::from_str(file).unwrap();
         assert_eq!(t.inner, MyEnum::B);
