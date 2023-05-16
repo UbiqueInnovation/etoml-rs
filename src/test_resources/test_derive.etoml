@@ -24,6 +24,7 @@ array = [[{
     inner_name = "really inner"
     test = test
 }]]
+optional_array = ["test"]
 
 [blubber_test]
 name = "yippee"

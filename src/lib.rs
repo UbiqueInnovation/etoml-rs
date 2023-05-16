@@ -25,7 +25,7 @@ macro_rules! etoml {
     };
 }
 
-pub fn from_str<Value: crate::Deserialize>(input : &str) -> Result<Value::Item, Value::Error> {
+pub fn from_str<Value: crate::Deserialize>(input: &str) -> Result<Value::Item, Value::Error> {
     Value::from_str(input)
 }
 
@@ -110,7 +110,7 @@ impl Deserialize for String {
 #[cfg(test)]
 #[allow(dead_code, unused_assignments)]
 mod tests {
-    use crate::{Deserialize, Value, from_str};
+    use crate::{from_str, Deserialize, EToml, Value};
     use std::collections::HashMap;
 
     use crate as etoml;
@@ -132,6 +132,7 @@ mod tests {
         port: u16,
         inner: Option<InnerStruct>,
         array: Vec<Vec<InnerStruct>>,
+        optional_array: Option<Vec<String>>,
     }
     #[derive(etoml_derive::Deserialize, Debug)]
     struct InnerStruct {
@@ -234,5 +235,30 @@ mod tests {
     pub fn test_invalid_syntax() {
         let file = include_str!("test_resources/test_invalid_syntax.etoml");
         assert!(HostConfig::from_str(file).is_err());
+    }
+    #[test]
+    pub fn dont_trim_whitespaces() {
+        let file = include_str!("test_resources/whitespace.etoml");
+        
+        println!(
+            "{}",
+            EToml::try_from(file)
+                .unwrap()
+                .global_symbols
+                .get("whitespacetest")
+                .unwrap()
+                .as_string()
+                .unwrap()
+        );
+         println!(
+            "{}",
+            EToml::try_from(file)
+                .unwrap()
+                .global_symbols
+                .get("other")
+                .unwrap()
+                .as_string()
+                .unwrap()
+        );
     }
 }

@@ -1,0 +1,2 @@
+global whitespacetest = "hallo " + "test"
+global other = "      test"

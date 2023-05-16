@@ -79,6 +79,9 @@ impl EToml {
                     .into_inner()
                     .next()
                     .unwrap()
+                    .into_inner()
+                    .next()
+                    .unwrap()
                     .as_str()
                     .to_string(),
             ),
@@ -982,7 +985,7 @@ mod tests {
         let file = include_str!("test_resources/test_no_semicolon.etoml");
         let file = EToml::try_from(file).unwrap();
         let test = &file.tables.values().next().unwrap().get("test");
-        assert!(matches!(test, Value::String(a) if a.as_str() == "test"));
+        assert!(matches!(test, Value::String(a) if a.as_str() == "\ntest"));
     }
     #[test]
     pub fn test_oneline() {
@@ -1160,7 +1163,7 @@ mod tests {
         assert_eq!(val.as_string().unwrap(), "test");
         let val = Value::from_str("1").unwrap();
         assert_eq!(val.as_integer().unwrap(), 1);
-        let  val = Value::from_str("${CARGO_PKG_VERSION}").unwrap();
+        let val = Value::from_str("${CARGO_PKG_VERSION}").unwrap();
         assert_eq!(val.as_string().unwrap(), "0.1.0");
     }
 }

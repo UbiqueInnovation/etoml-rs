@@ -35,11 +35,11 @@ environment_variable = {"${" ~ identifier ~ "}"}
 value_without_string_concat = { string | environment_variable |component_use | bool|function | key | number | array | object }
 string_concat = { value_without_string_concat ~ ("+" ~ value_without_string_concat)+ }
 
-normal_string = {PUSH("\"") ~ WHITESPACE* ~ string_content ~ WHITESPACE* ~ POP }
-string = @{raw_string | normal_string}
-raw_string = { "r" ~ PUSH("\""+) ~ WHITESPACE* ~ string_content ~ WHITESPACE* ~ POP }
-string_content = !{ string_char *}
-string_char = { !(PEEK) ~ ANY }
+normal_string = ${PUSH("\"") ~ string_content ~ POP }
+string = {raw_string | normal_string}
+raw_string = ${ "r" ~ PUSH("\""+) ~ string_content ~ POP }
+string_content = ${ string_char *}
+string_char = { !(PEEK) ~ (ANY|WHITESPACE) }
 
 function = { "function" ~ identifier ~ "(" ~ (function_argument ~ ("," ~ function_argument)* )? ~ ")" ~ ":" ~ function_type ~ "{" ~ function_body ~ "}"  }
 function_argument = { identifier ~ ":" ~ function_type }

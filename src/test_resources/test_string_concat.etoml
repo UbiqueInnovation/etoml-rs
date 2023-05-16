@@ -1,5 +1,6 @@
 [test]
-a = ${CARGO_PKG_VERSION} + "_test"
+a = ${CARGO_PKG_VERSION} + "    _test"
 b = "test_" + ${CARGO_PKG_VERSION}
 c = ${CARGO_PKG_VERSION} + "Test" + ${CARGO_PKG_VERSION} + "test"
 d = "test" + "other" + ${CARGO_PKG_VERSION}
+e = ["1", "2_" + ${CARGO_PKG_VERSION}]
