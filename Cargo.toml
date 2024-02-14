@@ -9,6 +9,8 @@ pest = "2"
 pest_derive = "2"
 syn = "2"
 quote = "1"
+log = "0.4.20"
+env_logger = "0.11.2"
 
 [dev-dependencies]
 etoml-derive = {git = "https://github.com/UbiqueInnovation/etoml-derive.git", rev = "9aefa8d761472763831636a7dba501fc45846c70"}

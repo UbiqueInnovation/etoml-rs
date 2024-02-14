@@ -86,7 +86,7 @@ impl<T: crate::Deserialize<Item = T>> crate::Deserialize for BTreeMap<String, T>
     }
 
     fn from_str(input: &str) -> Result<Self::Item, Self::Error> {
-        let file = EToml::try_from(input).map_err(|e| format!("{:?}", e))?;
+        let file = EToml::try_from(input).map_err(|e| format!("{e}"))?;
 
         let value = Value::Object(file.tables);
         let global_symbol_table = Value::Object(file.global_symbols);

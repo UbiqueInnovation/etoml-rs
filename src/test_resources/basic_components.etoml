@@ -1,0 +1,9 @@
+component[value] test(a) {
+    {
+        property = a
+    }
+}
+component[section] testSection(name, a) {
+    [name]
+    property = a
+}

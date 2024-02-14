@@ -2,8 +2,9 @@
 We can either parse a config file or directly a value without external references
 */
 value_no_key = {string_concat| component_use | string | environment_variable | bool|function | number | array | object}
-config_file = { SOI ~ "{"? ~ (component_use | section | function | global_symbol | component_definition | property)* ~ "}"? ~ EOI }
+config_file = { SOI ~ "{"? ~  (import_statement | component_use | section | function | global_symbol | component_definition | property)* ~ "}"? ~ EOI }
 
+import_statement = { "import" ~ string ~ ";"?}
 global_symbol = {"global" ~ property ~ ";"?}
 
 identifier = @{ "$"? ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
@@ -51,7 +52,7 @@ component_type_section = {"section"}
 component_definition_value =  !{ "component" ~"[" ~ component_type_value ~"]" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~")" ~ "{" ~ value+ ~ "}"}
 component_definition_section =  !{ "component" ~"[" ~ component_type_section ~"]" ~ identifier ~ "(" ~ (identifier ~ ("," ~ identifier)*)? ~")" ~ "{" ~ section+ ~ "}"}
 component_definition = {component_definition_section | component_definition_value}
-component_use = {"@" ~ identifier ~"(" ~ (value ~ ("," ~ value)* )? ~ ")" ~ ""}
+component_use = {"@" ~ identifier ~"(" ~ (value ~ ("," ~ value)* )? ~ ")" ~ "" ~ ";"?}
 
 function_type = {
     "bool" |

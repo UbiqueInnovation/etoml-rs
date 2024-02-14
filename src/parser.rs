@@ -114,16 +114,27 @@ impl EToml {
 #[grammar = "etoml.pest"]
 pub struct ProxyConfigParser {}
 
+impl<Input: AsRef<str>, Include: AsRef<str>> TryFrom<(Input, Include)> for EToml {
+    type Error = String;
+
+    fn try_from(value: (Input, Include)) -> Result<Self, Self::Error> {
+        let input = value.0;
+        let context = value.1;
+        if std::env::var("ETOML_INCLUDES").is_err() {
+            std::env::set_var("ETOML_INCLUDES", context.as_ref());
+        }
+        EToml::try_from(input.as_ref())
+    }
+}
+
 impl TryFrom<&str> for EToml {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let parsed = ProxyConfigParser::parse(Rule::config_file, value)
-            .map_err(|e| format!("{}", e))?
-            .next()
-            .unwrap();
-
-        // println!("{:?}", parsed);
+            .map_err(|e| format!("{}", e))?.next().unwrap();
+        let include_directory = std::env::var("ETOML_INCLUDES").unwrap_or(std::env::current_dir().unwrap().to_str().unwrap().to_string());
+        log::debug!("{:?}", parsed);
         let mut config_file = EToml {
             tables: HashMap::new(),
             global_functions: HashMap::new(),
@@ -133,6 +144,18 @@ impl TryFrom<&str> for EToml {
         };
         for r in parsed.into_inner() {
             match r.as_rule() {
+                Rule::import_statement => {
+                    let inner = r.into_inner().next().unwrap();
+                    let file_name = config_file.extract_value(inner).as_string().unwrap();
+                    log::debug!("{include_directory}/{file_name}");
+                    let file_content = std::fs::read_to_string(format!("{include_directory}/{file_name}")).map_err(|e| format!("{}", e))?;
+                    let toml = EToml::try_from(file_content.as_str())?;
+                    config_file.tables.extend(toml.tables);
+                    config_file.global_functions.extend(toml.global_functions);
+                    config_file.global_symbols.extend(toml.global_symbols);
+                    config_file.component_section_definitions.extend(toml.component_section_definitions);
+                    config_file.component_value_definitions.extend(toml.component_value_definitions);
+                }
                 Rule::component_definition => {
                     let mut inner_rules = r.into_inner().next().unwrap().into_inner();
 
@@ -425,6 +448,7 @@ impl EToml {
 pub struct ValueArrayIterator<'a> {
     inner: Option<IterMut<'a, Value>>,
 }
+
 impl<'a> Iterator for ValueArrayIterator<'a> {
     type Item = &'a mut Value;
 
@@ -436,6 +460,7 @@ impl<'a> Iterator for ValueArrayIterator<'a> {
 pub struct ValueObjectIterator<'a> {
     inner: Option<std::collections::hash_map::IterMut<'a, String, Value>>,
 }
+
 impl<'a> Iterator for ValueObjectIterator<'a> {
     type Item = (&'a String, &'a mut Value);
 
@@ -447,6 +472,7 @@ impl<'a> Iterator for ValueObjectIterator<'a> {
 pub struct ValueObjectRefIterator<'a> {
     inner: Option<std::collections::hash_map::Iter<'a, String, Value>>,
 }
+
 impl<'a> Iterator for ValueObjectRefIterator<'a> {
     type Item = (&'a String, &'a Value);
 
@@ -504,6 +530,7 @@ fn has_null_identifier(vals: &[&Value]) -> bool {
     }
     has_it
 }
+
 fn render_inner(
     global_functions: &HashMap<String, Function>,
     global_symbols: &HashMap<String, Value>,
@@ -565,16 +592,16 @@ pub fn get_property_mut<'a>(
             let key = fold.2.to_string();
             if fold.0.is_some()
                 && fold
-                    .0
-                    .as_ref()
-                    .and_then(|f| {
-                        if f.contains_key(&fold.2) {
-                            Some(true)
-                        } else {
-                            None
-                        }
-                    })
-                    .is_some()
+                .0
+                .as_ref()
+                .and_then(|f| {
+                    if f.contains_key(&fold.2) {
+                        Some(true)
+                    } else {
+                        None
+                    }
+                })
+                .is_some()
             {
                 match fold.0.and_then(|f| f.get_mut(&key)) {
                     Some(Value::Object(ref mut obj)) => (Some(obj), None, next_string.to_string()),
@@ -673,7 +700,7 @@ impl Value {
         } else if let Value::Identifier(_, obj) = self {
             obj.as_string()
         } else if let Value::Environment(env_var) = self {
-            println!("try getting from env");
+            log::debug!("try getting from env");
             std::env::var(env_var).ok()
         } else if let Value::Number(n) = self {
             Some(n.to_string())
@@ -795,6 +822,7 @@ impl TryFrom<&str> for Type {
 pub trait Render<T> {
     fn call(&self, arguments: Vec<Value>, global_symbols: HashMap<String, Value>) -> Option<T>;
 }
+
 #[derive(Clone, Debug)]
 pub struct Component<T> {
     pub name: String,
@@ -881,7 +909,7 @@ impl Render<Section> for Component<Section> {
         let original_symbols = global_symbols.clone();
         resolve_globals(&mut global_symbols, &HashMap::new(), &original_symbols);
         let mut name = self.body.name.clone();
-        println!("{:?}", global_symbols);
+        log::debug!("{:?}", global_symbols);
         for (key, value) in &global_symbols {
             if key == &self.body.name {
                 name = value.as_string().unwrap_or_else(|| self.body.name.clone());
@@ -911,6 +939,7 @@ impl Render<Section> for Component<Section> {
         })
     }
 }
+
 impl Render<Value> for crate::parser::Component<Value> {
     fn call(&self, arguments: Vec<Value>, global_symbols: HashMap<String, Value>) -> Option<Value> {
         let mut global_symbols: HashMap<String, Value> = self
@@ -939,7 +968,28 @@ mod tests {
     use crate::{etoml, parser::Render, Deserialize};
 
     use super::{EToml, Value};
+    #[test]
+    fn test_import() {
+        let file = include_str!("test_resources/test_import.etoml");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let path = format!("{manifest_dir}/src/test_resources");
+        std::env::set_var("ETOML_INCLUDES", path);
+        let file = EToml::try_from(file).unwrap();
+        assert!(file.tables.contains_key("importedComponent"));
+        let imported_component = file.tables.get("importedComponent").unwrap().to_owned();
+        assert!(imported_component.get("property").as_bool().unwrap());
 
+
+        let file = include_str!("test_resources/test_import.etoml");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let path = format!("{manifest_dir}/src/test_resources");
+      ;
+        let file = EToml::try_from((file, path.as_str())).unwrap();
+        assert!(file.tables.contains_key("importedComponent"));
+        let imported_component = file.tables.get("importedComponent").unwrap().to_owned();
+        assert!(imported_component.get("property").as_bool().unwrap());
+
+    }
     #[test]
     fn test_global_object() {
         let file = include_str!("test_resources/test_global_object_in_array.etoml");
@@ -954,6 +1004,7 @@ mod tests {
             panic!("oidc should be an array");
         }
     }
+
     #[test]
     fn test_basic() {
         let file = include_str!("test_resources/basic_properties.etoml");
@@ -987,6 +1038,7 @@ mod tests {
         let test = &file.tables.values().next().unwrap().get("test");
         assert!(matches!(test, Value::String(a) if a.as_str() == "\ntest"));
     }
+
     #[test]
     pub fn test_oneline() {
         let file = include_str!("test_resources/test_one_line.etoml");
@@ -994,6 +1046,7 @@ mod tests {
         let test = &file.tables.values().next().unwrap().get("test");
         assert_eq!(test.as_string(), Some("test".to_string()));
     }
+
     #[test]
     pub fn test_global_render() {
         let file = include_str!("test_resources/test_global_render.etoml");
@@ -1023,12 +1076,14 @@ mod tests {
             .len();
         assert_eq!(object_len, 2);
     }
+
     #[test]
     pub fn test_raw_string() {
         let file = include_str!("test_resources/test_raw_string.etoml");
         let file = EToml::try_from(file).unwrap();
         println!("{:?}", file);
     }
+
     #[test]
     pub fn test_object_with_comma() {
         let file = include_str!("test_resources/object_with_comma.etoml");
@@ -1048,9 +1103,10 @@ mod tests {
             [other];
             two =2
         }}
-        .unwrap();
+            .unwrap();
         println!("{:?}", file);
     }
+
     #[test]
     pub fn component_test() {
         let file = include_str!("test_resources/test_component.etoml");
@@ -1074,6 +1130,7 @@ mod tests {
         };
         assert!(matches!(inner_value.as_ref(), Value::Number(a) if a.eq(&1.0)));
     }
+
     #[test]
     pub fn component_test_global() {
         let file = include_str!("test_resources/test_component_with_global.etoml");
@@ -1083,21 +1140,34 @@ mod tests {
     }
 
     #[test]
+    pub fn component_test_params_concat() {
+        let file = include_str!("test_resources/test_component_concat.etoml");
+        let file = EToml::try_from(file).unwrap();
+        println!("{:#?}", file);
+        assert!(file.tables.contains_key("my_name"));
+        assert_eq!(file.tables.get("my_name").unwrap().get("a").as_string().unwrap(), "t_something");
+        assert_eq!(file.tables.get("my_name").unwrap().get("b").as_string().unwrap(), "something_t");
+        assert_eq!(file.tables.get("my_name").unwrap().get("c").as_string().unwrap(), "t_something_t");
+    }
+
+    #[test]
     pub fn test_env_var() {
         let file = include_str!("test_resources/test_env_var.etoml");
         let file = EToml::try_from(file).unwrap();
 
         assert_eq!(
             file.global_symbols.get("env_path").unwrap().as_string(),
-            Some("0.1.0".to_string())
+            Some("0.2.0".to_string())
         );
     }
+
     #[test]
     pub fn test_string_concat() {
         let file = include_str!("test_resources/test_string_concat.etoml");
         let file = EToml::try_from(file).unwrap();
         println!("{:?}", file);
     }
+
     #[test]
     pub fn test_general_concat() {
         let file = include_str!("test_resources/test_concat.etoml");
@@ -1117,7 +1187,7 @@ mod tests {
         );
         assert_eq!(
             file.tables["test"].get("concat_env").as_string().unwrap(),
-            "0.1.0_1_blub"
+            "0.2.0_1_blub"
         );
 
         assert_eq!(
@@ -1143,6 +1213,7 @@ mod tests {
         );
         println!("{:#?}", file);
     }
+
     #[test]
     fn test_direct_object() {
         let file = include_str!("test_resources/test_direct_object.etoml");
@@ -1152,6 +1223,7 @@ mod tests {
             "yeah"
         );
     }
+
     #[test]
     fn test_value() {
         let val = Value::from_str("[1,2,4]").unwrap();
@@ -1164,6 +1236,6 @@ mod tests {
         let val = Value::from_str("1").unwrap();
         assert_eq!(val.as_integer().unwrap(), 1);
         let val = Value::from_str("${CARGO_PKG_VERSION}").unwrap();
-        assert_eq!(val.as_string().unwrap(), "0.1.0");
+        assert_eq!(val.as_string().unwrap(), "0.2.0");
     }
 }

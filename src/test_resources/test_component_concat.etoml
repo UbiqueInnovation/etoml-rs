@@ -1,0 +1,8 @@
+component[section] test(name, something){
+    [name]
+    a = "t_" + something
+    b = something + "_t"
+    c = "t_" + something + "_t"
+}
+
+@test("my_name", "something");
