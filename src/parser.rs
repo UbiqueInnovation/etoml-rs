@@ -120,7 +120,7 @@ impl<Input: AsRef<str>, Include: AsRef<str>> TryFrom<(Input, Include)> for EToml
     fn try_from(value: (Input, Include)) -> Result<Self, Self::Error> {
         let input = value.0;
         let context = value.1;
-        if std::env::var("ETOML_INCLUDES").is_err() {
+        if cfg!(not(target_arch="wasm32")) && std::env::var("ETOML_INCLUDES").is_err() {
             std::env::set_var("ETOML_INCLUDES", context.as_ref());
         }
         EToml::try_from(input.as_ref())
@@ -133,7 +133,12 @@ impl TryFrom<&str> for EToml {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let parsed = ProxyConfigParser::parse(Rule::config_file, value)
             .map_err(|e| format!("{}", e))?.next().unwrap();
-        let include_directory = std::env::var("ETOML_INCLUDES").unwrap_or(std::env::current_dir().unwrap().to_str().unwrap().to_string());
+        let include_directory =
+        if cfg!(not(target_arch="wasm32")) {
+         std::env::var("ETOML_INCLUDES").unwrap_or(std::env::current_dir().unwrap().to_str().unwrap().to_string())
+        }  else  {
+            "".to_string()
+        };
         log::debug!("{:?}", parsed);
         let mut config_file = EToml {
             tables: HashMap::new(),
@@ -144,7 +149,10 @@ impl TryFrom<&str> for EToml {
         };
         for r in parsed.into_inner() {
             match r.as_rule() {
+                
                 Rule::import_statement => {
+                    #[cfg(not(target_arch="wasm32"))]
+                    {
                     let inner = r.into_inner().next().unwrap();
                     let file_name = config_file.extract_value(inner).as_string().unwrap();
                     log::debug!("{include_directory}/{file_name}");
@@ -155,6 +163,7 @@ impl TryFrom<&str> for EToml {
                     config_file.global_symbols.extend(toml.global_symbols);
                     config_file.component_section_definitions.extend(toml.component_section_definitions);
                     config_file.component_value_definitions.extend(toml.component_value_definitions);
+                    }
                 }
                 Rule::component_definition => {
                     let mut inner_rules = r.into_inner().next().unwrap().into_inner();
@@ -685,9 +694,13 @@ impl Value {
         } else if let Value::Identifier(_, obj) = self {
             obj.as_bool()
         } else if let Value::Environment(env_var) = self {
+            if cfg!(not(target_arch="wasm32")) {
             std::env::var(env_var)
                 .ok()
                 .and_then(|a| a.parse::<bool>().ok())
+            } else {
+                None
+            }
         } else if let Value::Concat(inner) = self {
             inner[0].as_bool()
         } else {
@@ -700,8 +713,12 @@ impl Value {
         } else if let Value::Identifier(_, obj) = self {
             obj.as_string()
         } else if let Value::Environment(env_var) = self {
-            log::debug!("try getting from env");
-            std::env::var(env_var).ok()
+            if cfg!(not(target_arch="wasm32")) {
+                log::debug!("try getting from env");
+                std::env::var(env_var).ok()
+            } else {
+                None
+            }
         } else if let Value::Number(n) = self {
             Some(n.to_string())
         } else if let Value::Concat(inner_values) = self {
@@ -750,9 +767,13 @@ impl Value {
         } else if let Value::Identifier(_, obj) = self {
             obj.as_integer()
         } else if let Value::Environment(env_var) = self {
+            if cfg!(not(target_arch="wasm32")) {
             std::env::var(env_var)
                 .ok()
                 .and_then(|a| a.parse::<i128>().ok())
+            } else {
+                None
+            }
         } else if let Value::Concat(inner) = self {
             Some(inner.iter().filter_map(|a| a.as_integer()).sum())
         } else {
@@ -765,9 +786,13 @@ impl Value {
         } else if let Value::Identifier(_, obj) = self {
             obj.as_float()
         } else if let Value::Environment(env_var) = self {
+            if cfg!(not(target_arch="wasm32")) {
             std::env::var(env_var)
                 .ok()
                 .and_then(|a| a.parse::<f64>().ok())
+            } else {
+                None
+            }
         } else if let Value::Concat(inner) = self {
             Some(inner.iter().filter_map(|a| a.as_float()).sum())
         } else {
