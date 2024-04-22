@@ -9,7 +9,7 @@ pub mod parser;
 use parser::{Component, Section};
 pub use parser::{Function, Value};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct EToml {
     pub tables: HashMap<String, Value>,
     pub global_symbols: HashMap<String, Value>,

@@ -632,7 +632,7 @@ pub fn get_property<'a>(object: &'a HashMap<String, Value>, name: &str) -> Optio
     dictionary.and_then(|a| a.get(&last_key)).or(result)
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone,serde::Serialize, serde::Deserialize)]
 pub enum Value {
     Array(Vec<Value>),
     Boolean(bool),
@@ -776,14 +776,14 @@ impl Value {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone,serde::Serialize, serde::Deserialize)]
 pub struct Function {
     name: String,
     arguments: Vec<(String, Type)>,
     return_type: Type,
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone,serde::Serialize, serde::Deserialize)]
 pub enum Type {
     String,
     Bool,
@@ -823,7 +823,7 @@ pub trait Render<T> {
     fn call(&self, arguments: Vec<Value>, global_symbols: HashMap<String, Value>) -> Option<T>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug,serde::Serialize, serde::Deserialize)]
 pub struct Component<T> {
     pub name: String,
     pub component_type: ComponentType,
@@ -831,13 +831,13 @@ pub struct Component<T> {
     pub body: T,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug,serde::Serialize, serde::Deserialize)]
 pub enum ComponentType {
     Section,
     Value,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug,serde::Serialize, serde::Deserialize)]
 pub struct Section {
     pub name: String,
     pub properties: HashMap<String, Value>,
